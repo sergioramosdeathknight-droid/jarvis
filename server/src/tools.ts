@@ -1,6 +1,7 @@
 import { getNews, type GetNewsArgs } from './news.js';
 import { getMarkets, getWeather } from './dashboard.js';
 import { wikiLookup } from './wiki.js';
+import { webAra } from './websearch.js';
 import { addMemory, removeMemory } from './profile.js';
 import { checkVideo, findHighlights, latestFromChannel, searchVideos, videoIdFrom } from './youtube.js';
 import { lookAtCamera } from './camera.js';
@@ -230,6 +231,22 @@ export const TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'web_ara',
+      description:
+        "Genel internet araması yapar (Brave Search). Wikipedia'da olmayan güncel bilgiler, haberler, ürünler, kişiler, etkinlikler ve genel sorular için kullanılır. Sonuçları başlık, URL ve özet olarak döndürür.",
+      parameters: {
+        type: 'object',
+        properties: {
+          sorgu: { type: 'string', description: 'Arama sorgusu, ör. "2026 Türkiye enflasyon oranı"' },
+          adet: { type: 'number', description: 'Kaç sonuç istendiği (1-10, varsayılan 5)' },
+        },
+        required: ['sorgu'],
+      },
+    },
+  },
 ] as const;
 
 export type ToolProgress = (line: string) => void;
@@ -269,6 +286,18 @@ export async function runTool(name: string, rawArgs: string, progress: ToolProgr
     // Modele fotoğraf adresi gitmez (model URL yazmaz); fotoğrafı sunucu "wiki" alanındaki başlıktan ekler.
     const { foto, ...rest } = w;
     return JSON.stringify({ ...rest, foto: foto ? { var: true, lisans: foto.lisans, yazar: foto.yazar } : null });
+  }
+  if (name === 'web_ara') {
+    const sorgu = String(args.sorgu ?? args.query ?? '').trim();
+    if (!sorgu) return JSON.stringify({ error: 'Arama sorgusu boş.' });
+    progress(`internette aranıyor: ${sorgu}`);
+    try {
+      const r = await webAra(sorgu, Number(args.adet) || 5);
+      if (!r.length) return JSON.stringify({ error: `Sonuç bulunamadı: ${sorgu}` });
+      return JSON.stringify({ sorgu, sonuclar: r });
+    } catch (e: any) {
+      return JSON.stringify({ error: `Web araması başarısız: ${e?.message ?? e}` });
+    }
   }
   if (name === 'mac_ozeti_bul') {
     const takim = String(args.takim ?? '');
